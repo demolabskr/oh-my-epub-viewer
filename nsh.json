@@ -1,0 +1,9 @@
+{
+  "name": "EPUB Viewer",
+  "id": "kr.openlearninglab.epubviewer",
+  "version": "1.0.2",
+  "build": 3,
+  "icon": "assets/icon.png",
+  "rust": ".",
+  "root": "App"
+}
