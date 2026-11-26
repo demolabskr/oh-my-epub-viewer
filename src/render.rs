@@ -392,6 +392,11 @@ html,body{{margin:0!important;padding:0!important;width:100%!important;height:10
 #flow a{{color:inherit;}}
 #flow a[data-ext],#flow a[data-epub-href]{{color:#2f6fdb;}}
 #end{{display:inline-block;width:1px;height:1px;}}
+#copy{{position:fixed;z-index:10;display:none;align-items:center;gap:6px;padding:7px 12px;border-radius:8px;
+  background:#1f2937;color:#fff;font:600 13px/1 system-ui,sans-serif;cursor:pointer;user-select:none;
+  box-shadow:0 4px 14px rgba(0,0,0,.28);transform:translate(-50%,-100%);white-space:nowrap;}}
+#copy:hover{{background:#111827;}}
+#copy svg{{width:14px;height:14px;}}
 .folio{{position:absolute;width:{pw}px;bottom:40px;text-align:center;font:13px/1 system-ui,sans-serif;
   color:{ink};opacity:.55;letter-spacing:.05em;}}
 #spine{{position:absolute;top:0;bottom:0;left:{spine_x}px;width:80px;pointer-events:none;
@@ -400,6 +405,9 @@ html,body{{margin:0!important;padding:0!important;width:100%!important;height:10
 </style></head>
 <body><div id="paper"><div id="flow"><div class="epub-body"{body_attrs}>{body}</div><span id="end"></span></div>
 <div class="folio" style="left:0"></div><div class="folio" style="left:{pw}px"></div>{spine}</div>
+<div id="copy" role="button" title="선택한 글 복사 (Ctrl+C)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/>
+<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>복사</span></div>
 <script>
 (() => {{
   const PW = {pw}, PH = {ph}, VIEW = {view};
@@ -427,6 +435,7 @@ html,body{{margin:0!important;padding:0!important;width:100%!important;height:10
     n = Math.max(0, Math.min(pages - 1, n));
     page = n - n % VIEW;
     flow.style.transform = 'translateX(' + (-page * PW) + 'px)';
+    hideBubble();
     folios.forEach((f, i) => {{ f.textContent = page + i < pages ? (page + i + 1) + ' / ' + pages : ''; }});
     if (!quiet) post({{ type: 'page', page, pages }});
   }}
@@ -449,7 +458,7 @@ html,body{{margin:0!important;padding:0!important;width:100%!important;height:10
   function layout() {{
     fit(); measure(); go(target); ready = true;
   }}
-  window.addEventListener('resize', () => {{ fit(); }});
+  window.addEventListener('resize', () => {{ fit(); hideBubble(); }});
   window.addEventListener('message', (e) => {{
     let m; try {{ m = JSON.parse(e.data); }} catch (err) {{ return; }}
     if (m.cmd === 'turn') turn(m.dir);
@@ -458,6 +467,39 @@ html,body{{margin:0!important;padding:0!important;width:100%!important;height:10
   // A click that loaded this page (a link to another chapter) can reach it
   // too; clicks in its first moments are not the reader's.
   const settled = () => performance.now() > 600;
+  // The copy bubble over selected text (the web view has no menu of its own).
+  const bubble = document.getElementById('copy'), label = bubble.querySelector('span');
+  const selected = () => {{ const s = getSelection(); return s && !s.isCollapsed ? String(s).trim() : ''; }};
+  function hideBubble() {{ bubble.style.display = 'none'; }}
+  function placeBubble() {{
+    const s = getSelection();
+    if (!selected() || !s.rangeCount) return hideBubble();
+    const rects = [...s.getRangeAt(0).getClientRects()].filter(r => r.width > 0);
+    if (!rects.length) return hideBubble();
+    const top = rects.reduce((a, r) => (r.top < a.top ? r : a));
+    label.textContent = '복사';
+    bubble.style.display = 'flex';
+    const y = top.top - 8 < 40 ? top.bottom + 8 + bubble.offsetHeight : top.top - 8;
+    bubble.style.left = Math.max(50, Math.min(innerWidth - 50, top.left + top.width / 2)) + 'px';
+    bubble.style.top = y + 'px';
+  }}
+  bubble.addEventListener('mousedown', (e) => {{ e.preventDefault(); e.stopPropagation(); }});
+  bubble.addEventListener('click', (e) => {{
+    e.preventDefault(); e.stopPropagation();
+    const text = selected();
+    if (!text) return hideBubble();
+    post({{ type: 'copy', text }});
+    label.textContent = '복사됨';
+    setTimeout(() => {{ getSelection().removeAllRanges(); hideBubble(); }}, 700);
+  }});
+  document.addEventListener('mouseup', () => setTimeout(placeBubble, 0));
+  document.addEventListener('keyup', (e) => {{ if (e.shiftKey || e.key === 'Shift') placeBubble(); }});
+  document.addEventListener('selectionchange', () => {{ if (!selected()) hideBubble(); }});
+  // A click turns the page only once it is not the start of a double click
+  // (which selects a word), and not the click that drops a selection.
+  let pendingTurn = 0, hadSelection = false;
+  document.addEventListener('mousedown', () => {{ hadSelection = !!selected(); }});
+  document.addEventListener('dblclick', () => {{ clearTimeout(pendingTurn); }});
   document.addEventListener('click', (e) => {{
     if (!settled()) {{ e.preventDefault(); return; }}
     const a = e.target.closest && e.target.closest('a');
@@ -468,9 +510,11 @@ html,body{{margin:0!important;padding:0!important;width:100%!important;height:10
       else if (a.hasAttribute('data-ext')) post({{ type: 'external', href: a.getAttribute('href') }});
       return;
     }}
-    if (getSelection && String(getSelection())) return;
+    clearTimeout(pendingTurn);
+    if (e.detail > 1 || hadSelection || selected()) return;
     const r = e.clientX / innerWidth;
-    if (r < 0.35) turn(-1); else if (r > 0.65) turn(1);
+    const d = r < 0.35 ? -1 : r > 0.65 ? 1 : 0;
+    if (d) pendingTurn = setTimeout(() => {{ if (!selected()) turn(d); }}, 260);
   }});
   let wheelAt = 0;
   document.addEventListener('wheel', (e) => {{

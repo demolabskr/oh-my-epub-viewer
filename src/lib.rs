@@ -179,6 +179,7 @@ pub fn App() -> impl IntoElement {
                 go_chapter(chapter, fragment.map(Target::Anchor).unwrap_or(Target::Page(0)));
             }
             Some("external") => drop(open_url(text("href"))),
+            Some("copy") => set_clipboard(text("text")),
             Some("key") => match text("key").as_str() {
                 "open" => pick(),
                 "bigger" => step_text(1),

@@ -18,7 +18,7 @@ Windows에서는 WebView2 런타임이 필요합니다(Windows 11에는 기본 �
 
 ```sh
 nsh package --target windows                                       # .nsh\out\EPUB Viewer\
-"%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" installer\epub-viewer.iss  # dist\EPUB-Viewer-Setup-1.0.2.exe
+"%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" installer\epub-viewer.iss  # dist\EPUB-Viewer-Setup-1.0.3.exe
 ```
 
 설치 프로그램은 관리자 권한 없이 현재 사용자에게 설치하고(`%LOCALAPPDATA%\Programs\EPUB Viewer`), `.epub`을
@@ -45,6 +45,7 @@ Windows 10/11은 앱이 스스로 기본 앱이 될 수 없으므로, 설치 마
 | ←, ↑, PageUp, Shift+Space, 왼쪽 클릭 영역, 휠 위 | 이전 쪽 |
 | Home / End | 책의 맨 처음 / 맨 끝 |
 | Ctrl+= / Ctrl+− | 글자 크게 / 작게 |
+| 더블클릭·끌어서 선택 → [복사] 또는 Ctrl+C | 선택한 글 복사 |
 
 ## 구조
 
