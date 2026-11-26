@@ -106,3 +106,51 @@ e3["OEBPS/nav.xhtml"] = f"""<?xml version="1.0" encoding="utf-8"?>
 <head><title>목차</title></head><body>
 <nav epub:type="toc"><h1>목차</h1><ol>{lis}</ol></nav></body></html>"""
 write("sample-epub3.epub", e3)
+
+# Covers as real books make them: Calibre's SVG cover, an <img> at 100%
+# height (Sigil, InDesign) and a 100vh box, before one chapter.
+import struct, zlib
+
+def png(w, h):
+    """A w x h PNG: a dark blue cover with a light band."""
+    rows = b""
+    for y in range(h):
+        band = h * 0.35 < y < h * 0.5
+        rows += b"\x00" + (bytes((240, 200, 90)) if band else bytes((30, 50, 110))) * w
+    chunk = lambda t, d: struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xFFFFFFFF)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(rows, 9)) + chunk(b"IEND", b""))
+
+COVERS = {
+    "cover-svg": """<div><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1"
+ width="100%" height="100%" viewBox="0 0 600 800" preserveAspectRatio="none">
+<image width="600" height="800" xlink:href="../images/cover.png"/></svg></div>""",
+    "cover-img": """<div class="cover"><img src="../images/cover.png" alt="표지"/></div>""",
+    "cover-vh": """<div style="height:100vh;text-align:center"><img style="height:100%" src="../images/cover.png" alt="표지"/></div>""",
+}
+COVER_CSS = """@page { padding: 0; margin: 0 }
+body { text-align: center; padding: 0; margin: 0; height: 100%; }
+.cover { height: 100%; text-align: center; }
+.cover img { height: 100%; max-width: 100%; }
+"""
+ec = common(True)
+ec["OEBPS/images/cover.png"] = png(600, 800)
+ec["OEBPS/styles/cover.css"] = COVER_CSS
+for name, body in COVERS.items():
+    ec[f"OEBPS/text/{name}.xhtml"] = f"""<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="ko">
+<head><title>표지</title><link rel="stylesheet" type="text/css" href="../styles/cover.css"/></head>
+<body epub:type="cover">{body}</body></html>"""
+cover_items = "\n".join(f'<item id="{n}" href="text/{n}.xhtml" media-type="application/xhtml+xml"/>' for n in COVERS)
+ec["OEBPS/content.opf"] = f"""<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+<dc:title>표지 시험 책</dc:title><dc:language>ko</dc:language><dc:identifier id="id">sample-cover</dc:identifier>
+<meta property="dcterms:modified">2026-11-26T00:00:00Z</meta></metadata>
+<manifest>{manifest_items()}
+<item id="cover-image" href="images/cover.png" media-type="image/png" properties="cover-image"/>
+<item id="cover-css" href="styles/cover.css" media-type="text/css"/>
+{cover_items}</manifest>
+<spine>{"".join(f'<itemref idref="{n}"/>' for n in COVERS)}<itemref idref="ch1"/></spine></package>"""
+write("sample-cover.epub", ec)

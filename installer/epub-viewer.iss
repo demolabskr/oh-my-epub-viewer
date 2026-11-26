@@ -7,7 +7,7 @@
 
 #define AppName "EPUB Viewer"
 #define AppNameKo "EPUB 뷰어"
-#define AppVersion "1.0.3"
+#define AppVersion "1.0.4"
 #define AppExe "EPUB Viewer.exe"
 #define ProgId "OpenLearningLab.EpubViewer.epub"
 #define CapKey "Software\OpenLearningLab\EpubViewer\Capabilities"

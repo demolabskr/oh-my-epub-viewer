@@ -65,6 +65,9 @@ pub fn App() -> impl IntoElement {
     });
     // The chapter's page and page count, as the sheet reports them.
     let position = signal((0_u32, 1_u32));
+    // The sheet laid out its first page: WebView2 starts in the app's
+    // process on the first page, which takes a second or two.
+    let laid_out = signal(false);
     let status = signal(Status::Empty);
     let toc_open = signal(true);
     let area = signal(Size {
@@ -80,6 +83,9 @@ pub fn App() -> impl IntoElement {
             match blocking(move || Book::open(&path)).await {
                 Ok(Ok(opened)) => {
                     position.set((0, 1));
+                    laid_out.set(false);
+                    // Never keep the cover over a sheet that did not report.
+                    set_timeout(std::time::Duration::from_secs(8), move || laid_out.set(true));
                     reading.update(|r| {
                         r.chapter = 0;
                         r.target = Target::Page(0);
@@ -161,6 +167,7 @@ pub fn App() -> impl IntoElement {
                 let page = message["page"].as_u64().unwrap_or(0) as u32;
                 let pages = message["pages"].as_u64().unwrap_or(1) as u32;
                 position.set((page, pages));
+                laid_out.set(true);
             }
             Some("edge") => {
                 let chapter = reading.with_untracked(|r| r.chapter);
@@ -291,6 +298,9 @@ pub fn App() -> impl IntoElement {
                 if chapters() == 0 {
                     return "— / —".to_owned();
                 }
+                if !laid_out.get() {
+                    return "불러오는 중…".to_owned();
+                }
                 let (page, pages) = position.get();
                 let shown = if reading.with(|r| r.settings.spread) && page + 1 < pages {
                     format!("{}–{}", page + 1, page + 2)
@@ -395,6 +405,19 @@ pub fn App() -> impl IntoElement {
                             .flex_1()
                             .on_message(on_message),
                     )
+                    .child(when(move || !laid_out.get(), move || {
+                        view()
+                            .absolute()
+                            .inset_0()
+                            .items_center()
+                            .justify_center()
+                            .bg(move || reading.with(|r| hex(r.settings.paper.colors().0)))
+                            .child(
+                                text("책을 펼치는 중…")
+                                    .text_size(px(15.0))
+                                    .text_color(move || reading.with(|r| hex(r.settings.paper.colors().1)).opacity(0.55)),
+                            )
+                    }))
             })
             .otherwise(move || welcome(status, pick)),
         );

@@ -68,3 +68,21 @@ fn spreads_show_two_sheets() {
         std::fs::write(Path::new(&dir).join("spread.html"), html).unwrap();
     }
 }
+
+#[test]
+fn covers_inline_their_image() {
+    let book = sample("sample-cover.epub");
+    assert_eq!(book.spine.len(), 4);
+    let settings = Settings {
+        text_size: 100,
+        paper: Paper::White,
+        spread: false,
+    };
+    for chapter in 0..3 {
+        let html = chapter_page(&book, chapter, &Target::Page(0), &settings);
+        assert!(html.contains("data:image/png;base64,"), "cover {chapter} has its image");
+        if let Ok(dir) = std::env::var("EPUB_PREVIEW_DIR") {
+            std::fs::write(Path::new(&dir).join(format!("cover-{chapter}.html")), html).unwrap();
+        }
+    }
+}
